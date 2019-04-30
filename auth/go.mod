@@ -1,0 +1,1 @@
+module cmd/go/auth
