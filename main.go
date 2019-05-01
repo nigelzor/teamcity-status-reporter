@@ -4,6 +4,7 @@ import (
 	"cmd/browser"
 	"cmd/go/auth"
 	"encoding/xml"
+	"flag"
 	"fmt"
 	"github.com/caseymrm/menuet"
 	"io/ioutil"
@@ -12,10 +13,10 @@ import (
 )
 
 var items []menuet.MenuItem
-var host string = "https://teamcity.newhippo.com"
+var host = flag.String("host", "https://teamcity.newhippo.com", "teamcity server address")
 
 func fetchProjects() (projects Projects, err error) {
-	req, err := http.NewRequest("GET", host+"/app/rest/cctray/projects.xml", nil)
+	req, err := http.NewRequest("GET", (*host)+"/app/rest/cctray/projects.xml", nil)
 	if err != nil {
 		return
 	}
@@ -131,7 +132,7 @@ func menu() []menuet.MenuItem {
 		menuet.MenuItem{
 			Text: "Open TeamCity",
 			Clicked: func() {
-				browser.Open(host)
+				browser.Open(*host)
 			},
 		})
 }
@@ -158,6 +159,7 @@ type Projects struct {
 }
 
 func main() {
+	flag.Parse()
 	go update()
 	menuet.App().Label = "com.github.nigelzor.teamcity-status-reporter"
 	menuet.App().Children = menu
