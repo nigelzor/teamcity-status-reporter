@@ -80,10 +80,12 @@ func asMenuItem(p *Project) menuet.MenuItem {
 	} else if p.Failed() {
 		prefix = "❗️"
 	}
+	text := prefix + p.Name
+	url := p.WebUrl
 	return menuet.MenuItem{
-		Text: prefix + p.Name,
+		Text: text,
 		Clicked: func() {
-			browser.Open(p.WebUrl)
+			browser.Open(url)
 		},
 	}
 }
