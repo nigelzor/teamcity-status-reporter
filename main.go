@@ -1,19 +1,22 @@
 package main
 
 import (
+	"cmd/browser"
+	"cmd/go/auth"
 	"encoding/xml"
 	"fmt"
-	"time"
 	"github.com/caseymrm/menuet"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"cmd/go/auth"
+	"time"
 )
 
+var items []menuet.MenuItem
+var host string = "https://teamcity.newhippo.com"
+
 func fetchProjects() (projects Projects, err error) {
-	host := "https://teamcity.newhippo.com"
-	req, err := http.NewRequest("GET", host + "/app/rest/cctray/projects.xml", nil)
+	req, err := http.NewRequest("GET", host+"/app/rest/cctray/projects.xml", nil)
 	if err != nil {
 		return
 	}
@@ -39,7 +42,11 @@ func status(projects Projects) (status string) {
 	status = "✔️"
 	failed := 0
 	fixing := 0
+	running := 0
 	for _, project := range projects.Projects {
+		if project.Activity != "Sleeping" {
+			running += 1
+		}
 		if project.LastBuildStatus == "Unknown" {
 			continue
 		}
@@ -50,6 +57,9 @@ func status(projects Projects) (status string) {
 				fixing += 1
 			}
 		}
+	}
+	if running > 0 {
+		status = "➰"
 	}
 	if failed == 1 {
 		status = "❗️"
@@ -66,40 +76,70 @@ func status(projects Projects) (status string) {
 	return
 }
 
-func update() {
-	status := [...]string { "❕", "❗️", "❓", "‼️", "⁉️", "✔️" }
-	i := 0
-	for {
-		menuet.App().SetMenuState(&menuet.MenuState{
-			Title: status[i] + " " + time.Now().Format(":05"),
-		})
-		i += 1
-		if i >= len(status) {
-			i = 0
+func interesting(projects Projects) (res []menuet.MenuItem) {
+	for _, project := range projects.Projects {
+		if project.LastBuildStatus == "Unknown" {
+			continue
 		}
-		time.Sleep(time.Second)
+		if project.LastBuildStatus != "Success" {
+			res = append(res, menuet.MenuItem{
+				Text: project.Name + ": " + project.LastBuildStatus,
+				Clicked: func() {
+					browser.Open(project.WebUrl)
+				},
+			})
+		}
 	}
+	return
+}
+
+func update() {
+	for {
+		icon := "❕"
+		projects, err := fetchProjects()
+		if err == nil {
+			icon = status(projects)
+			items = interesting(projects)
+		} else {
+			log.Println(err)
+			items = append(items, menuet.MenuItem{
+				Text: err.Error(),
+			})
+		}
+		menuet.App().SetMenuState(&menuet.MenuState{
+			Title: icon,
+		})
+		time.Sleep(30 * time.Second)
+	}
+}
+
+func menu() []menuet.MenuItem {
+	return append(items, menuet.MenuItem{
+		Type: menuet.Separator,
+	}, menuet.MenuItem{
+		Text: "Open TeamCity",
+		Clicked: func() {
+			browser.Open(host)
+		},
+	})
+}
+
+type Project struct {
+	Activity        string `xml:"activity,attr"`
+	LastBuildLabel  string `xml:"lastBuildLabel,attr"`
+	LastBuildStatus string `xml:"lastBuildStatus,attr"`
+	LastBuildTime   string `xml:"lastBuildTime,attr"`
+	Name            string `xml:"name,attr"`
+	WebUrl          string `xml:"webUrl,attr"`
 }
 
 type Projects struct {
-	Projects []struct {
-		Activity string `xml:"activity,attr"`
-		LastBuildLabel string `xml:"lastBuildLabel,attr"`
-		LastBuildStatus string `xml:"lastBuildStatus,attr"`
-		LastBuildTime string `xml:"lastBuildTime,attr"`
-		Name string `xml:"name,attr"`
-		WebUrl string `xml:"webUrl,attr"`
-	} `xml:"Project"`
+	Projects []Project `xml:"Project"`
 }
 
 func main() {
-	projects, err := fetchProjects()
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(status(projects))
-	return
 	go update()
 	menuet.App().Label = "com.github.nigelzor.teamcity-status-reporter"
+	menuet.App().Children = menu
 	menuet.App().RunApplication()
 }

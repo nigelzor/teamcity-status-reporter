@@ -10,3 +10,7 @@ require (
 require cmd/go/auth v0.0.0
 
 replace cmd/go/auth v0.0.0 => ./auth
+
+require cmd/browser v0.0.0
+
+replace cmd/browser v0.0.0 => ./browser
