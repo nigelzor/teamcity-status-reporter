@@ -98,21 +98,26 @@ func interesting(projects []Project) (res []menuet.MenuItem) {
 }
 
 func update() {
+	delay := 30 * time.Second
 	for {
 		icon := "❕"
 		projects, err := fetchProjects()
 		if err == nil {
+			delay = 30 * time.Second
 			icon = status(projects.Projects)
 			items = interesting(projects.Projects)
 		} else {
-			items = append(items, menuet.MenuItem{
+			if delay < time.Hour {
+				delay *= 2
+			}
+			items = []menuet.MenuItem{menuet.MenuItem{
 				Text: err.Error(),
-			})
+			}}
 		}
 		menuet.App().SetMenuState(&menuet.MenuState{
 			Title: icon,
 		})
-		time.Sleep(30 * time.Second)
+		time.Sleep(delay)
 	}
 }
 
