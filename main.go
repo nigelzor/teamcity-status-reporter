@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/caseymrm/menuet"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"time"
 )
@@ -38,22 +37,18 @@ func fetchProjects() (projects Projects, err error) {
 	return
 }
 
-func status(projects Projects) (status string) {
+func status(projects []Project) (status string) {
 	status = "✔️"
 	failed := 0
 	fixing := 0
 	running := 0
-	for _, project := range projects.Projects {
-		if project.Activity != "Sleeping" {
+	for _, project := range projects {
+		if project.Running() {
 			running += 1
 		}
-		if project.LastBuildStatus == "Unknown" {
-			continue
-		}
-		if project.LastBuildStatus != "Success" {
-			fmt.Println(project)
+		if project.Failed() {
 			failed += 1
-			if project.Activity != "Sleeping" {
+			if project.Running() {
 				fixing += 1
 			}
 		}
@@ -76,18 +71,27 @@ func status(projects Projects) (status string) {
 	return
 }
 
-func interesting(projects Projects) (res []menuet.MenuItem) {
-	for _, project := range projects.Projects {
-		if project.LastBuildStatus == "Unknown" {
-			continue
-		}
-		if project.LastBuildStatus != "Success" {
-			res = append(res, menuet.MenuItem{
-				Text: project.Name + ": " + project.LastBuildStatus,
-				Clicked: func() {
-					browser.Open(project.WebUrl)
-				},
-			})
+func asMenuItem(p *Project) menuet.MenuItem {
+	var prefix string
+	if p.Running() && p.Failed() {
+		prefix = "❓"
+	} else if p.Running() {
+		prefix = "➰"
+	} else if p.Failed() {
+		prefix = "❗️"
+	}
+	return menuet.MenuItem{
+		Text: prefix + p.Name,
+		Clicked: func() {
+			browser.Open(p.WebUrl)
+		},
+	}
+}
+
+func interesting(projects []Project) (res []menuet.MenuItem) {
+	for _, project := range projects {
+		if project.Running() || project.Failed() {
+			res = append(res, asMenuItem(&project))
 		}
 	}
 	return
@@ -98,10 +102,9 @@ func update() {
 		icon := "❕"
 		projects, err := fetchProjects()
 		if err == nil {
-			icon = status(projects)
-			items = interesting(projects)
+			icon = status(projects.Projects)
+			items = interesting(projects.Projects)
 		} else {
-			log.Println(err)
 			items = append(items, menuet.MenuItem{
 				Text: err.Error(),
 			})
@@ -114,14 +117,16 @@ func update() {
 }
 
 func menu() []menuet.MenuItem {
-	return append(items, menuet.MenuItem{
-		Type: menuet.Separator,
-	}, menuet.MenuItem{
-		Text: "Open TeamCity",
-		Clicked: func() {
-			browser.Open(host)
+	return append(items,
+		menuet.MenuItem{
+			Type: menuet.Separator,
 		},
-	})
+		menuet.MenuItem{
+			Text: "Open TeamCity",
+			Clicked: func() {
+				browser.Open(host)
+			},
+		})
 }
 
 type Project struct {
@@ -131,6 +136,14 @@ type Project struct {
 	LastBuildTime   string `xml:"lastBuildTime,attr"`
 	Name            string `xml:"name,attr"`
 	WebUrl          string `xml:"webUrl,attr"`
+}
+
+func (p *Project) Running() bool {
+	return p.Activity != "Sleeping"
+}
+
+func (p *Project) Failed() bool {
+	return p.LastBuildStatus != "Unknown" && p.LastBuildStatus != "Success"
 }
 
 type Projects struct {
