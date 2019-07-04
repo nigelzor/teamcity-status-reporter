@@ -14,13 +14,18 @@ import (
 
 var items []menuet.MenuItem
 var host = flag.String("host", "https://teamcity.newhippo.com", "teamcity server address")
+var token = flag.String("token", "", "auth token")
 
 func fetchProjects() (projects Projects, err error) {
 	req, err := http.NewRequest("GET", (*host)+"/app/rest/cctray/projects.xml", nil)
 	if err != nil {
 		return
 	}
-	auth.AddCredentials(req)
+	if len(*token) > 0 {
+		req.Header.Set("Authorization", "Bearer " + *token)
+	} else {
+		auth.AddCredentials(req)
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return
@@ -34,7 +39,7 @@ func fetchProjects() (projects Projects, err error) {
 	if err != nil {
 		return
 	}
-	xml.Unmarshal(body, &projects)
+	err = xml.Unmarshal(body, &projects)
 	return
 }
 
