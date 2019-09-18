@@ -22,7 +22,7 @@ func fetchProjects() (projects Projects, err error) {
 		return
 	}
 	if len(*token) > 0 {
-		req.Header.Set("Authorization", "Bearer " + *token)
+		req.Header.Set("Authorization", "Bearer "+(*token))
 	} else {
 		auth.AddCredentials(req)
 	}
